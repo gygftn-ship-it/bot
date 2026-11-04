@@ -1,0 +1,124 @@
+const champs = () => Array.from(document.querySelectorAll('[data-key]'));
+const $ = (id) => document.getElementById(id);
+
+function afficherConfig(cfg) {
+  champs().forEach((el) => {
+    const v = cfg[el.dataset.key];
+    if (el.type === 'checkbox') el.checked = !!v;
+    else el.value = v ?? '';
+  });
+}
+
+function lireConfig() {
+  const cfg = {};
+  champs().forEach((el) => {
+    if (el.type === 'checkbox') cfg[el.dataset.key] = el.checked;
+    else if (el.type === 'number') cfg[el.dataset.key] = Number(el.value);
+    else cfg[el.dataset.key] = el.value.trim();
+  });
+  return cfg;
+}
+
+function message(texte) { $('msg').textContent = texte || ''; }
+
+function ajouterLog(ligne) {
+  const log = $('log');
+  log.textContent += ligne + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+function majStatut(texte) {
+  const inactif = ['Arrêté', 'Déconnecté', 'Erreur'].includes(texte);
+  $('status').firstChild.textContent = texte;
+  $('substatus').textContent = inactif
+    ? 'Enregistre puis démarre.'
+    : 'Le bot tourne tant que cette fenêtre reste ouverte.';
+  $('btnStart').disabled = !inactif;
+  $('btnStop').disabled = inactif;
+}
+
+window.api.onEvent(({ type, payload }) => {
+  if (type === 'status') majStatut(payload);
+  else if (type === 'log') ajouterLog(payload);
+  else if (type === 'modele') {
+    document.querySelector('[data-key="modele"]').value = payload;
+  } else if (type === 'qr') {
+    const img = $('qr');
+    if (payload) { img.src = payload; img.classList.add('visible'); }
+    else { img.removeAttribute('src'); img.classList.remove('visible'); }
+  }
+});
+
+$('btnSave').addEventListener('click', async () => {
+  await window.api.saveConfig(lireConfig());
+  message('Réglages enregistrés. Ils s\'appliquent au prochain démarrage.');
+});
+
+$('btnStart').addEventListener('click', async () => {
+  await window.api.saveConfig(lireConfig());
+  message('');
+  const r = await window.api.start();
+  if (!r.ok) message(r.erreur);
+});
+
+$('btnStop').addEventListener('click', () => window.api.stop());
+
+$('btnModeles').addEventListener('click', async () => {
+  if ($('fournisseur').value !== 'gemini') { message('La liste des modèles n\'est disponible que pour Gemini.'); return; }
+  message('Chargement des modèles…');
+  const r = await window.api.listModels(lireConfig().cleApi);
+  if (!r.ok) { message(r.erreur); return; }
+  const liste = $('modeles');
+  liste.innerHTML = '';
+  r.modeles.forEach((nom) => {
+    const o = document.createElement('option');
+    o.value = nom;
+    liste.appendChild(o);
+  });
+  if (r.conseille) document.querySelector('[data-key="modele"]').value = r.conseille;
+  message(`Clé valide. ${r.modeles.length} modèles disponibles, « ${r.conseille || '—'} » sélectionné.`);
+});
+
+$('btnTest').addEventListener('click', async () => {
+  message('Test en cours…');
+  const r = await window.api.testAI(lireConfig());
+  if (r.ok) {
+    ajouterLog('Test IA — réponse : ' + r.texte);
+    message('Le test a fonctionné.');
+  } else {
+    ajouterLog('Test IA — erreur : ' + r.erreur);
+    message('Le test a échoué : ' + r.erreur);
+  }
+});
+
+$('btnCopy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('log').textContent);
+    message('Journal copié.');
+  } catch (e) {
+    message('Copie impossible : sélectionne le texte et fais Ctrl+C.');
+  }
+});
+
+$('btnFolder').addEventListener('click', () => window.api.openFolder());
+
+$('btnReset').addEventListener('click', async () => {
+  await window.api.resetHistory();
+  message('Mémoire du bot effacée.');
+});
+
+$('btnLogout').addEventListener('click', async () => {
+  if (!confirm('Déconnecter WhatsApp ? Il faudra scanner un nouveau QR code au prochain démarrage.')) return;
+  await window.api.logout();
+  message('WhatsApp déconnecté.');
+});
+
+function majFournisseur() {
+  const gemini = $('fournisseur').value === 'gemini';
+  $('blocGemini').style.display = gemini ? '' : 'none';
+  $('blocAutre').style.display = gemini ? 'none' : '';
+}
+$('fournisseur').addEventListener('change', majFournisseur);
+
+window.api.getConfig().then((cfg) => { afficherConfig(cfg); majFournisseur(); });
+majStatut('Arrêté');
