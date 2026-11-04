@@ -1,12 +1,13 @@
 {
   "name": "bot-whatsapp-app",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Application de bureau : bot WhatsApp perso propulsé par l'API Google Gemini",
   "main": "main.js",
   "author": "moi",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
+    "test": "node test.js",
     "dist": "electron-builder --win --publish never"
   },
   "dependencies": {
@@ -21,7 +22,7 @@
     "appId": "com.perso.botwhatsapp",
     "productName": "BotWhatsApp",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "bot.js", "renderer/**", "package.json"],
+    "files": ["main.js", "preload.js", "bot.js", "utils.js", "renderer/**", "package.json"],
     "win": {
       "target": ["portable"],
       "artifactName": "BotWhatsApp.exe"
