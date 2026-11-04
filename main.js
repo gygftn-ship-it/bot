@@ -1,11 +1,12 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { Bot } = require('./bot');
+const { Bot, listerModeles, MODELE_PAR_DEFAUT } = require('./bot');
+const { meilleurModele } = require('./utils');
 
 const DEFAUT = {
   cleApi: '',
-  modele: 'gemini-2.5-flash',
+  modele: MODELE_PAR_DEFAUT,
   numerosAutorises: '',
   prenomElle: '',
   prenomMoi: '',
@@ -30,19 +31,42 @@ let bot = null;
 
 const dossierDonnees = () => app.getPath('userData');
 const fichierConfig = () => path.join(dossierDonnees(), 'config.json');
+const fichierJournal = () => path.join(dossierDonnees(), 'journal.txt');
 
 function chargerConfig() {
+  let cfg = { ...DEFAUT };
   try {
-    return { ...DEFAUT, ...JSON.parse(fs.readFileSync(fichierConfig(), 'utf8')) };
-  } catch (e) {
-    return { ...DEFAUT };
-  }
+    cfg = { ...DEFAUT, ...JSON.parse(fs.readFileSync(fichierConfig(), 'utf8')) };
+  } catch (e) {}
+  // Ancien modèle par défaut, retiré de l'accès pour les nouvelles clés.
+  if (cfg.modele === 'gemini-2.5-flash' || !cfg.modele) cfg.modele = MODELE_PAR_DEFAUT;
+  return cfg;
+}
+
+function sauverConfig(cfg) {
+  fs.mkdirSync(dossierDonnees(), { recursive: true });
+  fs.writeFileSync(fichierConfig(), JSON.stringify({ ...DEFAUT, ...cfg }, null, 2));
+}
+
+function ecrireJournal(ligne) {
+  try {
+    fs.mkdirSync(dossierDonnees(), { recursive: true });
+    fs.appendFileSync(fichierJournal(), ligne + '\n');
+  } catch (e) {}
 }
 
 function emettre(type, payload) {
   if (win && !win.isDestroyed()) win.webContents.send('bot:event', { type, payload });
-  // Si le démarrage échoue après coup, on libère le bot pour pouvoir relancer.
-  if (type === 'status' && payload === 'Erreur' && bot) {
+
+  if (type === 'log') ecrireJournal(payload);
+
+  // Le bot a changé de modèle tout seul : on le retient.
+  if (type === 'modele') {
+    try { sauverConfig({ ...chargerConfig(), modele: payload }); } catch (e) {}
+  }
+
+  // Après une erreur ou une déconnexion, on libère le bot pour pouvoir relancer.
+  if (type === 'status' && (payload === 'Erreur' || payload === 'Déconnecté') && bot) {
     const b = bot;
     bot = null;
     b.stop().catch(() => {});
@@ -77,8 +101,7 @@ function creerFenetre() {
 ipcMain.handle('config:get', () => chargerConfig());
 
 ipcMain.handle('config:save', (_e, cfg) => {
-  fs.mkdirSync(dossierDonnees(), { recursive: true });
-  fs.writeFileSync(fichierConfig(), JSON.stringify({ ...DEFAUT, ...cfg }, null, 2));
+  sauverConfig(cfg);
   return true;
 });
 
@@ -89,8 +112,10 @@ ipcMain.handle('bot:start', async () => {
     await bot.start();
     return { ok: true };
   } catch (e) {
+    const b = bot;
     bot = null;
-    emettre('status', 'Arrêté');
+    if (b) await b.stop().catch(() => {});
+    emettre('log', 'Démarrage impossible : ' + e.message);
     return { ok: false, erreur: e.message };
   }
 });
@@ -108,12 +133,45 @@ ipcMain.handle('bot:reset', () => {
 
 ipcMain.handle('bot:logout', async () => {
   await arreterBot();
-  try { fs.rmSync(path.join(dossierDonnees(), 'session'), { recursive: true, force: true }); } catch (e) {}
+  for (const d of ['profil-navigateur', 'session']) {
+    try { fs.rmSync(path.join(dossierDonnees(), d), { recursive: true, force: true }); } catch (e) {}
+  }
   return true;
 });
 
-app.whenReady().then(creerFenetre);
-app.on('window-all-closed', async () => {
-  await arreterBot();
-  app.quit();
+ipcMain.handle('models:list', async (_e, cle) => {
+  try {
+    const modeles = await listerModeles(cle);
+    return { ok: true, modeles, conseille: meilleurModele(modeles) };
+  } catch (e) {
+    return { ok: false, erreur: e.message };
+  }
 });
+
+ipcMain.handle('ai:test', async (_e, cfg) => {
+  try {
+    const b = new Bot({ ...DEFAUT, ...cfg }, dossierDonnees(), emettre);
+    const texte = await b.testerIA('coucou, ça va ?');
+    return { ok: true, texte };
+  } catch (e) {
+    return { ok: false, erreur: e.message };
+  }
+});
+
+ipcMain.handle('folder:open', () => shell.openPath(dossierDonnees()));
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+  app.whenReady().then(creerFenetre);
+  app.on('window-all-closed', async () => {
+    await arreterBot();
+    app.quit();
+  });
+}
