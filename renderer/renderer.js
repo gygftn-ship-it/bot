@@ -14,20 +14,12 @@ function lireConfig() {
   champs().forEach((el) => {
     if (el.type === 'checkbox') cfg[el.dataset.key] = el.checked;
     else if (el.type === 'number') cfg[el.dataset.key] = Number(el.value);
-    else cfg[el.dataset.key] = el.value;
+    else cfg[el.dataset.key] = el.value.trim();
   });
   return cfg;
 }
 
 function message(texte) { $('msg').textContent = texte || ''; }
-
-function majStatut(texte) {
-  const actif = !['Arrêté', 'Déconnecté', 'Erreur'].includes(texte);
-  $('status').firstChild.textContent = texte;
-  $('substatus').textContent = actif ? 'Le bot tourne tant que cette fenêtre reste ouverte.' : 'Enregistre puis démarre.';
-  $('btnStart').disabled = actif;
-  $('btnStop').disabled = !actif;
-}
 
 function ajouterLog(ligne) {
   const log = $('log');
@@ -35,10 +27,22 @@ function ajouterLog(ligne) {
   log.scrollTop = log.scrollHeight;
 }
 
+function majStatut(texte) {
+  const inactif = ['Arrêté', 'Déconnecté', 'Erreur'].includes(texte);
+  $('status').firstChild.textContent = texte;
+  $('substatus').textContent = inactif
+    ? 'Enregistre puis démarre.'
+    : 'Le bot tourne tant que cette fenêtre reste ouverte.';
+  $('btnStart').disabled = !inactif;
+  $('btnStop').disabled = inactif;
+}
+
 window.api.onEvent(({ type, payload }) => {
   if (type === 'status') majStatut(payload);
   else if (type === 'log') ajouterLog(payload);
-  else if (type === 'qr') {
+  else if (type === 'modele') {
+    document.querySelector('[data-key="modele"]').value = payload;
+  } else if (type === 'qr') {
     const img = $('qr');
     if (payload) { img.src = payload; img.classList.add('visible'); }
     else { img.removeAttribute('src'); img.classList.remove('visible'); }
@@ -58,6 +62,44 @@ $('btnStart').addEventListener('click', async () => {
 });
 
 $('btnStop').addEventListener('click', () => window.api.stop());
+
+$('btnModeles').addEventListener('click', async () => {
+  message('Chargement des modèles…');
+  const r = await window.api.listModels(lireConfig().cleApi);
+  if (!r.ok) { message(r.erreur); return; }
+  const liste = $('modeles');
+  liste.innerHTML = '';
+  r.modeles.forEach((nom) => {
+    const o = document.createElement('option');
+    o.value = nom;
+    liste.appendChild(o);
+  });
+  if (r.conseille) document.querySelector('[data-key="modele"]').value = r.conseille;
+  message(`Clé valide. ${r.modeles.length} modèles disponibles, « ${r.conseille || '—'} » sélectionné.`);
+});
+
+$('btnTest').addEventListener('click', async () => {
+  message('Test en cours…');
+  const r = await window.api.testAI(lireConfig());
+  if (r.ok) {
+    ajouterLog('Test IA — réponse : ' + r.texte);
+    message('Le test a fonctionné.');
+  } else {
+    ajouterLog('Test IA — erreur : ' + r.erreur);
+    message('Le test a échoué : ' + r.erreur);
+  }
+});
+
+$('btnCopy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('log').textContent);
+    message('Journal copié.');
+  } catch (e) {
+    message('Copie impossible : sélectionne le texte et fais Ctrl+C.');
+  }
+});
+
+$('btnFolder').addEventListener('click', () => window.api.openFolder());
 
 $('btnReset').addEventListener('click', async () => {
   await window.api.resetHistory();
