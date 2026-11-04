@@ -3,7 +3,7 @@ const $ = (id) => document.getElementById(id);
 
 function afficherConfig(cfg) {
   champs().forEach((el) => {
-    const v = cfg[el.dataset.key];
+    const v 
     if (el.type === 'checkbox') el.checked = !!v;
     else el.value = v ?? '';
   });
