@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const QRCode = require('qrcode');
 
@@ -23,6 +24,25 @@ function trouverNavigateur() {
     '/usr/bin/chromium-browser',
   ];
   return liste.find((p) => p && fs.existsSync(p));
+}
+
+
+// Ferme les navigateurs restés ouverts avec le profil du bot (lancements précédents ratés).
+function tuerNavigateursDuProfil(profil) {
+  if (process.platform !== 'win32') return Promise.resolve();
+  const motif = profil.replace(/'/g, "''");
+  const script =
+    "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'msedge.exe' -or $_.Name -eq 'chrome.exe') -and $_.CommandLine -and $_.CommandLine.Contains('" +
+    motif +
+    "') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { windowsHide: true, timeout: 15000 },
+      () => resolve()
+    );
+  });
 }
 
 class Bot {
@@ -68,8 +88,10 @@ class Bot {
     this.log('Démarrage de WhatsApp Web…');
     this.log('Navigateur utilisé : ' + navigateur);
 
-    // Supprime d'anciens verrous laissés par un lancement qui a échoué.
+    // Ferme d'anciens navigateurs restés ouverts, puis supprime leurs verrous.
     const profil = path.join(this.dossier, 'session', 'session');
+    await tuerNavigateursDuProfil(profil);
+    await attendre(500);
     for (const f of ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'lockfile']) {
       try { fs.rmSync(path.join(profil, f), { force: true }); } catch (e) {}
     }
@@ -127,6 +149,7 @@ class Bot {
       try { await this.client.destroy(); } catch (e) {}
       this.client = null;
     }
+    await tuerNavigateursDuProfil(path.join(this.dossier, 'session', 'session'));
     this.emit('qr', null);
     this.emit('status', 'Arrêté');
     this.log('Bot arrêté.');
