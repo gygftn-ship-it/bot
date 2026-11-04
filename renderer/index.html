@@ -27,7 +27,7 @@
   main { overflow-y: auto; padding: 28px 32px 48px; }
   aside {
     border-left: 1px solid var(--line); background: var(--surface);
-    padding: 24px 22px; display: flex; flex-direction: column; gap: 16px;
+    padding: 22px 20px; display: flex; flex-direction: column; gap: 14px;
     overflow-y: auto;
   }
   h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; letter-spacing: -0.01em; }
@@ -43,6 +43,8 @@
   textarea { resize: vertical; min-height: 64px; }
   input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .inline { display: flex; gap: 8px; align-items: flex-end; }
+  .inline > div { flex: 1; }
   .check { display: flex; align-items: center; gap: 8px; font-weight: 550; margin-top: 16px; }
   .check input { width: 16px; height: 16px; margin: 0; }
   button {
@@ -51,12 +53,14 @@
   }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   button.danger { color: var(--danger); }
+  button.small { padding: 8px 10px; white-space: nowrap; }
   button:disabled { opacity: .5; cursor: default; }
   .status { font-size: 17px; font-weight: 650; }
   .status small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; }
   #qr { display: none; width: 100%; max-width: 260px; align-self: center; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid var(--line); }
   #qr.visible { display: block; }
   .actions { display: grid; gap: 8px; }
+  .actions.two { grid-template-columns: 1fr 1fr; }
   #log {
     flex: 1; min-height: 140px; margin: 0; padding: 10px; overflow-y: auto;
     background: var(--field); border: 1px solid var(--line); border-radius: 6px;
@@ -69,7 +73,7 @@
 <body>
 <main>
   <h1>Bot WhatsApp</h1>
-  <p class="sub">Il répond à ton numéro, dans le style que tu décris. Rien n'est envoyé à d'autres contacts.</p>
+  <p class="sub">Il répond à ton numéro, dans le style que tu décris. Il ne répond à personne d'autre.</p>
 
   <fieldset>
     <legend>Connexion</legend>
@@ -77,12 +81,18 @@
       <span class="hint">À créer sur aistudio.google.com/apikey. Elle reste enregistrée sur cet ordinateur.</span>
       <input type="password" data-key="cleApi" autocomplete="off">
     </label>
-    <label>Modèle Gemini
-      <span class="hint">Change-le si Google en propose un plus récent.</span>
-      <input type="text" data-key="modele">
-    </label>
+    <div class="inline">
+      <div>
+        <label>Modèle Gemini
+          <span class="hint">Si le modèle n'est pas disponible avec ta clé, le bot en choisit un autre tout seul.</span>
+          <input type="text" data-key="modele" list="modeles">
+        </label>
+        <datalist id="modeles"></datalist>
+      </div>
+      <button class="small" id="btnModeles" type="button">Charger les modèles</button>
+    </div>
     <label>Numéros autorisés
-      <span class="hint">Ton numéro, avec l'indicatif pays, sans + ni espaces (ex : 33612345678). Plusieurs numéros : sépare-les par une virgule.</span>
+      <span class="hint">Ton numéro principal, avec l'indicatif pays (ex : 33612345678). Plusieurs numéros : sépare-les par une virgule.</span>
       <input type="text" data-key="numerosAutorises">
     </label>
   </fieldset>
@@ -120,7 +130,8 @@
       <label>Frappe (ms par lettre) <input type="number" min="0" data-key="msParCaractere"></label>
       <label>Messages en mémoire <input type="number" min="2" data-key="memoire"></label>
     </div>
-    <label class="check"><input type="checkbox" data-key="afficherNavigateur"> Afficher la fenêtre du navigateur (à cocher si le démarrage échoue)</label>
+    <label class="check"><input type="checkbox" data-key="afficherNavigateur"> Afficher la fenêtre du navigateur</label>
+    <span class="hint">Décoche pour que le navigateur reste caché une fois que tout fonctionne.</span>
     <label class="check"><input type="checkbox" data-key="horairesActifs"> Répondre seulement à certaines heures</label>
     <div class="row">
       <label>De (heure) <input type="number" min="0" max="23" data-key="heureDebut"></label>
@@ -135,10 +146,17 @@
   <div class="actions">
     <button class="primary" id="btnStart">Enregistrer et démarrer</button>
     <button id="btnStop" disabled>Arrêter</button>
-    <button id="btnSave">Enregistrer</button>
+    <div class="actions two">
+      <button id="btnSave">Enregistrer</button>
+      <button id="btnTest">Tester l'IA</button>
+    </div>
   </div>
   <div id="msg"></div>
   <pre id="log" aria-live="polite"></pre>
+  <div class="actions two">
+    <button id="btnCopy">Copier le journal</button>
+    <button id="btnFolder">Ouvrir le dossier</button>
+  </div>
   <div class="actions">
     <button id="btnReset">Effacer la mémoire du bot</button>
     <button class="danger" id="btnLogout">Déconnecter WhatsApp</button>
