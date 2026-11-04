@@ -110,8 +110,8 @@
       <textarea data-key="infosSurElle"></textarea>
     </label>
     <label>Prompt personnalisé
-      <span class="hint">Facultatif. S'il est rempli, il remplace la description ci-dessus.</span>
-      <textarea data-key="promptPerso" style="min-height:110px"></textarea>
+      <span class="hint">Le cerveau de Lina est déjà rempli ici. Tu peux le modifier. S'il est vide, la description ci-dessus est utilisée à la place.</span>
+      <textarea data-key="promptPerso" style="min-height:220px"></textarea>
     </label>
     <label>Exemples de ses vrais messages
       <span class="hint">Un message par ligne. Prends son accord avant d'utiliser ses messages.</span>
@@ -128,8 +128,12 @@
     </div>
     <div class="row">
       <label>Frappe (ms par lettre) <input type="number" min="0" data-key="msParCaractere"></label>
+      <label>Lecture (ms par lettre) <input type="number" min="0" data-key="msLecture"></label>
+      <label>Longueur max d'une réponse <input type="number" min="40" data-key="longueurMax"></label>
       <label>Messages en mémoire <input type="number" min="2" data-key="memoire"></label>
     </div>
+    <span class="hint">Frappe : 250 correspond à la vitesse moyenne d'une personne sur téléphone. Longueur : en caractères, 180 ≈ une ou deux phrases courtes.</span>
+    <label class="check"><input type="checkbox" data-key="passerHorsLigne"> Passer hors ligne une fois la discussion terminée</label>
     <label class="check"><input type="checkbox" data-key="afficherNavigateur"> Afficher la fenêtre du navigateur</label>
     <span class="hint">Décoche pour que le navigateur reste caché une fois que tout fonctionne.</span>
     <label class="check"><input type="checkbox" data-key="horairesActifs"> Répondre seulement à certaines heures</label>
