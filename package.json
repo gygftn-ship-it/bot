@@ -1,0 +1,31 @@
+{
+  "name": "bot-whatsapp-app",
+  "version": "3.1.1",
+  "description": "Application de bureau : bot WhatsApp perso avec comportement humain (Gemini, Claude ou compatible OpenAI)",
+  "main": "main.js",
+  "author": "moi",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test.js",
+    "dist": "electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "whatsapp-web.js": "^1.26.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.perso.botwhatsapp",
+    "productName": "BotWhatsApp",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "bot.js", "utils.js", "humain.js", "vie.js", "fournisseurs.js", "lina.js", "renderer/**", "package.json"],
+    "win": {
+      "target": ["portable"],
+      "artifactName": "BotWhatsApp.exe"
+    }
+  }
+}
