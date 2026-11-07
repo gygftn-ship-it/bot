@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<title>Bot WhatsApp</title>
+<style>
+  :root {
+    --bg: #edf0f3; --surface: #ffffff; --ink: #1c2530; --muted: #5d6b7a;
+    --line: #d5dbe2; --accent: #1d6b73; --accent-ink: #ffffff; --danger: #a8402f;
+    --field: #f7f9fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12171d; --surface: #1b222b; --ink: #e6ebf0; --muted: #93a1b0;
+      --line: #2c3743; --accent: #4fb3bd; --accent-ink: #0d1a1c; --danger: #e07a68;
+      --field: #151b22;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--ink);
+    display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  }
+  main { overflow-y: auto; padding: 28px 32px 48px; }
+  aside {
+    border-left: 1px solid var(--line); background: var(--surface);
+    padding: 22px 20px; display: flex; flex-direction: column; gap: 14px;
+    overflow-y: auto;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 0 0 18px; padding: 6px 18px 18px; }
+  legend { font-weight: 650; padding: 0 8px; font-size: 15px; }
+  label { display: block; margin-top: 14px; font-weight: 550; }
+  .hint { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    width: 100%; margin-top: 6px; padding: 8px 10px; font: inherit; color: inherit;
+    background: var(--field); border: 1px solid var(--line); border-radius: 6px;
+  }
+  textarea { resize: vertical; min-height: 64px; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .inline { display: flex; gap: 8px; align-items: flex-end; }
+  .inline > div { flex: 1; }
+  .check { display: flex; align-items: center; gap: 8px; font-weight: 550; margin-top: 16px; }
+  .check input { width: 16px; height: 16px; margin: 0; }
+  button {
+    font: inherit; font-weight: 600; padding: 9px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.small { padding: 8px 10px; white-space: nowrap; }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { font-size: 17px; font-weight: 650; }
+  .status small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; }
+  #qr { display: none; width: 100%; max-width: 260px; align-self: center; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid var(--line); }
+  #qr.visible { display: block; }
+  .actions { display: grid; gap: 8px; }
+  .actions.two { grid-template-columns: 1fr 1fr; }
+  #log {
+    flex: 1; min-height: 140px; margin: 0; padding: 10px; overflow-y: auto;
+    background: var(--field); border: 1px solid var(--line); border-radius: 6px;
+    font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; word-break: break-word;
+  }
+  #msg { min-height: 18px; font-size: 12.5px; color: var(--muted); }
+  @media (max-width: 860px) { body { grid-template-columns: 1fr; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bot WhatsApp</h1>
+  <p class="sub">Il répond à ton numéro, dans le style que tu décris. Il ne répond à personne d'autre.</p>
+
+  <fieldset>
+    <legend>Connexion</legend>
+    <label>Fournisseur d'IA
+      <span class="hint">Gemini a une offre gratuite. Claude (Anthropic) ou une API compatible OpenAI (OpenAI, OpenRouter, Mistral, DeepSeek…) tiennent en général mieux un personnage et écrivent plus naturellement, mais sont payants.</span>
+      <select data-key="fournisseur" id="fournisseur">
+        <option value="gemini">Google Gemini</option>
+        <option value="anthropic">Claude (Anthropic)</option>
+        <option value="openai">Compatible OpenAI (OpenAI, OpenRouter, Mistral…)</option>
+      </select>
+    </label>
+    <label>Clé API du fournisseur choisi
+      <span class="hint">Gemini : aistudio.google.com/apikey · Claude : console.anthropic.com · Elle reste enregistrée sur cet ordinateur.</span>
+      <input type="password" data-key="cleApi" autocomplete="off">
+    </label>
+    <div id="blocGemini">
+      <div class="inline">
+        <div>
+          <label>Modèle Gemini
+            <span class="hint">Version gratuite : « lite » permet bien plus de messages par jour. Si un modèle est saturé, le bot en essaie un autre tout seul.</span>
+            <input type="text" data-key="modele" list="modeles">
+          </label>
+          <datalist id="modeles"></datalist>
+        </div>
+        <button class="small" id="btnModeles" type="button">Charger les modèles</button>
+      </div>
+    </div>
+    <div id="blocAutre" style="display:none">
+      <label>Modèle (autre fournisseur)
+        <span class="hint">Claude : laisse vide pour « claude-haiku-5-5 » (économique) ou écris « claude-sonnet-5-5 » (plus naturel). Compatible OpenAI : nom exact du modèle chez ton fournisseur.</span>
+        <input type="text" data-key="modeleAutre">
+      </label>
+      <label>Adresse de l'API (compatible OpenAI uniquement)
+        <span class="hint">Vide = OpenAI. OpenRouter : https://openrouter.ai/api/v1 · Mistral : https://api.mistral.ai/v1</span>
+        <input type="text" data-key="baseUrl">
+      </label>
+    </div>
+    <label>Numéros autorisés
+      <span class="hint">Ton numéro principal, avec l'indicatif pays (ex : 33612345678). Plusieurs numéros : sépare-les par une virgule.</span>
+      <input type="text" data-key="numerosAutorises">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Personnage</legend>
+    <div class="row">
+      <label>Son prénom <input type="text" data-key="prenomElle"></label>
+      <label>Ton prénom <input type="text" data-key="prenomMoi"></label>
+    </div>
+    <label>Votre relation <input type="text" data-key="relation"></label>
+    <label>Façon d'écrire <textarea data-key="styleEcriture"></textarea></label>
+    <label>Infos sur elle
+      <span class="hint">Métier, goûts, habitudes, surnoms… tout ce qui aide à la rendre crédible.</span>
+      <textarea data-key="infosSurElle"></textarea>
+    </label>
+    <label>Prompt personnalisé
+      <span class="hint">Le cerveau de Lina est déjà rempli ici. Tu peux le modifier. S'il est vide, la description ci-dessus est utilisée à la place.</span>
+      <textarea data-key="promptPerso" style="min-height:220px"></textarea>
+    </label>
+    <label>Exemples de ses vrais messages
+      <span class="hint">Un message par ligne. Prends son accord avant d'utiliser ses messages.</span>
+      <textarea data-key="exemples" style="min-height:140px"></textarea>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Profil rapide</legend>
+    <label>Choisis une ambiance, elle règle plusieurs réglages d'un coup (tu peux ensuite les ajuster)
+      <select id="profil">
+        <option value="">— Réglages personnalisés —</option>
+        <option value="equilibre">Équilibrée (conseillé)</option>
+        <option value="vivante">Très vivante : écrit plus souvent, curieuse, spontanée</option>
+        <option value="discrete">Discrète : peu de messages spontanés, peu de questions</option>
+        <option value="econome">Économe : moins d'appels à l'IA</option>
+      </select>
+    </label>
+    <span class="hint" id="profilInfo">N'oublie pas d'enregistrer ensuite.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Comportement</legend>
+    <div class="row">
+      <label>Réponse rapide : min (s) <input type="number" min="0" data-key="delaiMin"></label>
+      <label>Réponse rapide : max (s) <input type="number" min="0" data-key="delaiMax"></label>
+      <label>Attente fin de messages (s) <input type="number" min="0" data-key="attenteFin"></label>
+    </div>
+    <div class="row">
+      <label>Frappe (ms par lettre) <input type="number" min="0" data-key="msParCaractere"></label>
+      <label>Lecture (ms par lettre) <input type="number" min="0" data-key="msLecture"></label>
+      <label>Longueur max d'une réponse <input type="number" min="40" data-key="longueurMax"></label>
+      <label>Messages en mémoire courte <input type="number" min="2" data-key="memoire"></label>
+      <label>Bulles max par réponse <input type="number" min="1" max="3" data-key="bullesMax"></label>
+    </div>
+    <span class="hint">Frappe : 250 correspond à la vitesse moyenne d'une personne sur téléphone. Longueur : en caractères, 180 ≈ une ou deux phrases courtes.</span>
+    <label class="check"><input type="checkbox" data-key="passerHorsLigne"> Passer hors ligne une fois la discussion terminée</label>
+    <label class="check"><input type="checkbox" data-key="afficherNavigateur"> Afficher la fenêtre du navigateur</label>
+    <span class="hint">Décoche pour que le navigateur reste caché une fois que tout fonctionne.</span>
+    <label class="check"><input type="checkbox" data-key="horairesActifs"> Répondre seulement à certaines heures</label>
+    <div class="row">
+      <label>De (heure) <input type="number" min="0" max="23" data-key="heureDebut"></label>
+      <label>À (heure) <input type="number" min="0" max="24" data-key="heureFin"></label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Vie humaine</legend>
+    <span class="hint" style="margin-top:8px">Elle a un rythme de journée : elle dort, va en cours, mange, se détend. Elle répond vite quand vous discutez, plus tard quand elle est occupée, et au réveil la nuit.</span>
+    <label class="check"><input type="checkbox" data-key="latenceRealiste"> Délais de réponse réalistes (de quelques secondes à plusieurs minutes, selon ce qu'elle fait)</label>
+    <div class="row">
+      <label>Fuseau horaire <input type="text" data-key="fuseau"></label>
+      <label>Réveil (heure, ex 7.5 = 7h30) <input type="number" step="0.5" min="0" max="12" data-key="heureReveil"></label>
+      <label>Coucher (heure, ex 0.5 = 0h30) <input type="number" step="0.5" min="0" max="24" data-key="heureCoucher"></label>
+      <label>Lenteur des réponses lentes (1 = normal, 0.3 = plus rapide) <input type="number" step="0.1" min="0.05" data-key="rapidite"></label>
+    </div>
+    <div class="row">
+      <label>Fautes de frappe (% des messages) <input type="number" min="0" max="30" data-key="fautesFrappe"></label>
+      <label>Échelle de temps (1 = normal, 0.1 = 10× plus vite, pour tester) <input type="number" step="0.05" min="0.001" data-key="echelleTemps"></label>
+    </div>
+    <span class="hint">Fautes de frappe : un mot mal écrit, puis corrigé juste après (« *mot »), comme sur un vrai téléphone.</span>
+    <label class="check"><input type="checkbox" data-key="reactions"> Réagir parfois par un emoji au lieu d'écrire (❤️ sur un « je t'aime », 👍 sur un « ok »)</label>
+    <label class="check"><input type="checkbox" data-key="citations"> Citer un message précis pour y répondre (réponse ciblée, ou reprise d'un sujet resté en suspens)</label>
+    <label class="check"><input type="checkbox" data-key="presenceAleatoire"> Apparaître « en ligne » de temps en temps, sans raison</label>
+    <label class="check"><input type="checkbox" data-key="memoireLongue"> Mémoire à long terme (elle retient ce que tu lui racontes)</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Vie qui continue et imperfections</legend>
+    <label class="check"><input type="checkbox" data-key="evenementsVie"> Elle a des événements de vie qui durent (examen, dispute avec sa sœur, projet avec Ania…) et elle en reparle les jours suivants</label>
+    <div class="row">
+      <label>Événements en même temps (1 à 3) <input type="number" min="1" max="3" data-key="maxEvenements"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="joursOff"> Certains jours, elle n'a pas envie de parler (sèche, vexée ou froide pendant quelques heures), puis elle revient</label>
+    <div class="row">
+      <label>Jours concernés (% des jours) <input type="number" min="0" max="100" data-key="probaJourOff"></label>
+      <label>Message lu sans réponse (% des messages) <input type="number" min="0" max="50" data-key="vuSansReponse"></label>
+      <label>Deux messages d'affilée quand elle s'emballe (% des réponses) <input type="number" min="0" max="50" data-key="doubleMessage"></label>
+    </div>
+    <span class="hint">Les événements sont retenus dans le dossier de données (etat.json) : « Effacer la mémoire du bot » remet sa vie à zéro. Mets 0 dans un pourcentage pour couper la fonction.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Culture, calendrier et journée vécue</legend>
+    <label class="check"><input type="checkbox" data-key="calendrierActif"> Elle connaît les dates : anniversaires, Yennayer, Aïd, Ramadan, vendredi… et t'envoie ses vœux</label>
+    <label class="check"><input type="checkbox" data-key="ramadanAuto"> Pendant le Ramadan, elle jeûne, se lève et se couche plus tard, et rompt le jeûne (iftar) au coucher du soleil</label>
+    <div class="row">
+      <label>Ton anniversaire (JJ/MM) <input type="text" data-key="anniversaireMoi" placeholder="04/09"></label>
+      <label>Son anniversaire (JJ/MM) <input type="text" data-key="anniversaireElle" placeholder="22/12"></label>
+      <label>Décalage du Ramadan (jours de retard sur l'Arabie saoudite, 0 ou 1) <input type="number" min="-2" max="2" data-key="decalageHegire"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="faitsJournee"> Elle a une vraie journée : repas, cours, petits incidents (elle répond à « t'as fait quoi ? » d'après ces faits, toujours les mêmes pour une même journée)</label>
+    <label class="check"><input type="checkbox" data-key="meteoActive"> Elle a la météo du jour (pluie, soleil, chaleur selon la saison)</label>
+    <div class="row">
+      <label>Ville <input type="text" data-key="ville"></label>
+    </div>
+    <span class="hint">La date du Ramadan et des Aïd suit le calendrier de l'Arabie saoudite ; si ton pays commence un jour plus tard, mets 1 dans le décalage. Mets un anniversaire vide pour le désactiver.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Souvenirs et naturel</legend>
+    <label class="check"><input type="checkbox" data-key="rappelsSuivi"> Elle retient ce que tu lui annonces à une date (examen, entretien, voyage…) : un mot d'encouragement le jour J, puis « alors, comment ça s'est passé ? »</label>
+    <label class="check"><input type="checkbox" data-key="antiRepetition"> Elle évite de se répéter (mêmes emojis, même début de phrase, toujours une question à la fin)</label>
+    <div class="row"><label>Curiosité : elle te pose des questions (0 = presque jamais, 100 = très souvent) <input type="number" min="0" max="100" data-key="curiosite"></label></div>
+    <span class="hint">Elle réagit d'abord à ton message, puis pose une vraie question : sur ce que tu viens de dire, ou sur un sujet pour mieux te connaître (famille, goûts, projets…), sans jamais répéter le même sujet. Conseillé : 40 à 60.</span>
+    <label class="check"><input type="checkbox" data-key="langageOral"> Écriture orale : pas de formules d'assistant, « je sais pas » plutôt que « je ne sais pas », pas de point final</label>
+    <label class="check"><input type="checkbox" data-key="parlerSouvenirs"> Elle repense à vos anciennes discussions et t'écrit parfois à ce sujet (« alors, ça s'est arrangé ? »)</label>
+    <label class="check"><input type="checkbox" data-key="longueurMiroir"> Elle écrit court quand tu écris court (longueur proportionnée à ton message)</label>
+    <div class="row">
+      <label>Mise à jour de la mémoire tous les N messages <input type="number" min="0" max="50" data-key="memoireTous"></label>
+      <label>Taille max de l'historique envoyé à l'IA (caractères) <input type="number" min="2000" max="100000" data-key="memoireCaracteres"></label>
+      <label>Taille visée du carnet de faits chargé (caractères) <input type="number" min="300" max="8000" data-key="memoireFaitsMax"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="memoireSelective"> Elle ne charge de sa mémoire que ce qui sert à la conversation en cours (moins de tokens)</label>
+    <label class="check"><input type="checkbox" data-key="journalEtat"> Afficher dans le journal l'état d'elle à chaque réponse (humeur, séduction du jour, ambiance, émotions) : utile pour comprendre pourquoi elle répond ainsi</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Écriture et crédibilité</legend>
+    <label class="check"><input type="checkbox" data-key="contexteAvance"> Elle comprend mieux le contexte : message auquel tu réponds, repères de temps (« il y a 2 h »), messages très courts, mots mélangés (darija, arabizi…)</label>
+    <label class="check"><input type="checkbox" data-key="styleSms"> Style SMS : abréviations (jsp, bcp, tkt), « t'es », majuscule oubliée, lettres étirées</label>
+    <div class="row">
+      <label>Intensité du style SMS (0 = jamais, 1 = très souvent) <input type="number" step="0.1" min="0" max="1" data-key="intensiteSms"></label>
+    </div>
+    <div class="row">
+      <label>Messages ordinaires avec un emoji (%) <input type="number" min="0" max="100" data-key="emojiProba"></label>
+      <label>Messages d'amour avec emoji(s) doux (%) <input type="number" min="0" max="100" data-key="emojiAmourProba"></label>
+      <label>Emojis max dans un message d'amour <input type="number" min="1" max="3" data-key="emojiAmourMax"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="emojiAmour"> Plus d'emojis doux (❤️ 🥰 😘 🥺) dans les messages d'amour ; partout ailleurs, presque jamais</label>
+    <div class="row">
+      <label>Créativité de l'IA (0.5 = prudente, 1 = plus inventive) <input type="number" step="0.1" min="0.1" max="1.5" data-key="temperature"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="controleCredibilite"> Dernier contrôle avant l'envoi : phrases d'assistant, répétitions, mise en scène (*sourit*) retirées ou refaites</label>
+    <label class="check"><input type="checkbox" data-key="antiHallucination"> Elle n'invente pas ce qu'elle ne sait pas (elle le dit plutôt que de bluffer)</label>
+    <span class="hint">Le contrôle de crédibilité peut redemander une réponse à l'IA en cas de phrase d'assistant ou de répétition : il ne coûte un appel de plus que dans ces cas-là.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Vie intérieure et passé</legend>
+    <label class="check"><input type="checkbox" data-key="emotionsActives"> Émotions qui durent (joie, gêne, tendresse, émue, nostalgique, stressée…), lien affectif qui se construit, douleur du jour</label>
+    <label class="check"><input type="checkbox" data-key="vecuActif"> Fatigue, stress et besoin de parler : ils influencent si elle écrit et ce qu'elle dit</label>
+    <label class="check"><input type="checkbox" data-key="elanActif"> Elle a de l'initiative dans la conversation : relance, avis tranché, taquinerie, confidence, proposition</label>
+    <label class="check"><input type="checkbox" data-key="personnaliteActive"> Personnalité : opinions, envies, droit de ne pas être d'accord</label>
+    <label class="check"><input type="checkbox" data-key="douleursActives"> Petits maux physiques certains jours (migraine, dos, ventre…)</label>
+    <div class="row">
+      <label>Variation du coucher / réveil d'un jour à l'autre (heures, 0 = fixe) <input type="number" step="0.5" min="0" max="4" data-key="variationSommeil"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="histoireActive"> Son passé et ses proches (Hocine, Karima, Sarah, Inès, Nna Tassadit, Amel, Ania…) : toujours cohérents, souvenirs intimes selon la confiance</label>
+    <label class="check"><input type="checkbox" data-key="entourageVivant"> Des histoires qui avancent chez ses proches (fiançailles de Sarah, BEM d'Inès, olives au village…) et qui la touchent</label>
+    <label class="check"><input type="checkbox" data-key="vieFac"> Emploi du temps de fac : cours, TD, exposés</label>
+    <label class="check"><input type="checkbox" data-key="vieFamille"> Vie de famille</label>
+    <label class="check"><input type="checkbox" data-key="vieSentimentale"> Vie sentimentale (amies, confidences)</label>
+    <div class="row">
+      <label>Filière <input type="text" data-key="filiere" placeholder="anglais (L2)"></label>
+    </div>
+    <span class="hint">Les histoires et le passé sont fixes : ils ne changent pas d'un jour à l'autre. « Effacer la mémoire du bot » remet les histoires en cours à zéro.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Vraie vie : pannes, absences, promesses</legend>
+    <label class="check"><input type="checkbox" data-key="pannesActives"> Pannes de la vie réelle : réseau qui saute, plus de data, batterie à plat, coupure de courant (silence expliqué, puis « me revoilà »)</label>
+    <div class="row">
+      <label>Jours avec une panne (%) <input type="number" min="0" max="100" data-key="pannesProbaJour"></label>
+      <label>Jours minimum entre deux pannes <input type="number" min="0" max="30" data-key="pannesEcartJours"></label>
+      <label>Réponses suivies d'une petite absence (%) <input type="number" min="0" max="100" data-key="absencesProba"></label>
+      <label>Petites absences max par jour <input type="number" min="0" max="6" data-key="absencesParJour"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="promessesActives"> Elle tient (ou s'excuse d'avoir oublié) ce qu'elle a promis : « je te raconte ça ce soir »</label>
+    <label class="check"><input type="checkbox" data-key="coherenceImmediate"> Ce qu'elle raconte de sa journée est noté tout de suite (pas de contradiction quelques messages plus tard)</label>
+    <span class="hint">Pendant une panne, elle ne répond pas ; à son retour elle explique ce qui s'est passé.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Suites de la relation</legend>
+    <label class="check"><input type="checkbox" data-key="suitesActives"> Interrupteur général des quatre options ci-dessous</label>
+    <label class="check"><input type="checkbox" data-key="lendemainIntime"> Le lendemain d'un moment qui a chauffé : un peu gênée, plus tendre, un mot doux</label>
+    <label class="check"><input type="checkbox" data-key="habitudesActives"> Elle apprend à quelles heures tu réponds vite et écrit plus à ces heures-là</label>
+    <label class="check"><input type="checkbox" data-key="disputesAvecLui"> Petites bouderies avec toi (un malentendu, quelques heures, puis réconciliation)</label>
+    <div class="row">
+      <label>Jours avec une bouderie possible (%) <input type="number" min="0" max="100" data-key="bouderieProbaJour"></label>
+      <label>Jours minimum entre deux bouderies <input type="number" min="0" max="60" data-key="bouderieEcartJours"></label>
+    </div>
+    <span class="hint">Mets 0 dans un pourcentage pour couper la fonction.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Séduction et intimité</legend>
+    <span class="hint">Tout est suggéré, jamais cru, et ton « non » passe avant tout : si tu dis non, stop, ou si tu sembles mal à l'aise, elle s'arrête net, avec tendresse.</span>
+    <div class="row">
+      <label>Audace (0 = jamais, 1 = léger, 2 = monte d'un cran, 3 = plus audacieuse) <input type="number" min="0" max="3" data-key="coquin"></label>
+      <label>Intensité imposée tous les jours <select data-key="coquinCurseurFixe" data-null="1"><option value="">Au hasard chaque jour</option><option value="0">Sage</option><option value="1">Douce</option><option value="2">Joueuse</option><option value="3">Brûlante</option></select></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="coquinVariation"> L'intensité change au hasard chaque jour (sage, douce, joueuse, brûlante). Décoché : toujours au maximum permis par « Audace »</label>
+    <label class="check"><input type="checkbox" data-key="tensionActive"> Tension sur plusieurs jours : un moment resté en suspens revient en allusion, en attente, puis se referme en douceur</label>
+    <div class="row">
+      <label>Durée d'un fil de tension (1 à 5 jours) <input type="number" min="1" max="5" data-key="tensionJoursMax"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="rythmeSensuel"> Rythme dans les moments chauds : message très court, deux bulles hésitantes, ou petit silence avant de répondre</label>
+    <label class="check"><input type="checkbox" data-key="intimiteActive"> Interrupteur général de l'intimité (les cinq options ci-dessous ; coupé aussi si Audace = 0)</label>
+    <label class="check"><input type="checkbox" data-key="presenceActive"> Présence physique suggérée le soir (chaleur, parfum, voix qui baisse, tenue pour dormir)</label>
+    <label class="check"><input type="checkbox" data-key="nuitsActives"> Les nuits : « j'arrive pas à dormir… » (une nuit sur quatre environ) et, rarement, un réveil en pleine nuit</label>
+    <div class="row">
+      <label>Chance qu'un message de nuit la réveille (%) <input type="number" min="0" max="100" data-key="reveilNuitProba"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-key="scenariosActifs"> Scénarios imaginés à deux (« si tu étais là ce soir… ») : ils reviennent les jours suivants, 3 reprises au plus</label>
+    <label class="check"><input type="checkbox" data-key="langageIntime"> Langage intime qui évolue : surnoms selon le lien, petits mots à elle, phrases coupées quand elle est troublée</label>
+    <label class="check"><input type="checkbox" data-key="jalousieDouce"> Jalousie douce et taquinerie : une pique pour rire quand tu parles d'une autre fille (jamais d'interrogatoire)</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Une vraie vie</legend>
+    <label class="check"><input type="checkbox" data-key="calendrierUniv"> Année universitaire : rentrée, partiels, vacances d'hiver et de printemps, rattrapages, grandes vacances (pas de cours en été !)</label>
+    <label class="check"><input type="checkbox" data-key="mondeVivant"> Un monde qui dure : la série qu'elle regarde, son livre, la langue qu'elle apprend, son défi du moment, et ce qui se passe chez elle cette semaine (sœurs, parents, Ania)</label>
+    <span class="hint">En été, elle a des journées à la plage et des mariages ; pendant les partiels, elle est plus stressée et moins disponible. Elle se souvient aussi de ce qu'elle t'a raconté sur sa vie pour ne jamais se contredire.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Messages spontanés</legend>
+    <label class="check"><input type="checkbox" data-key="initiativeActive"> Elle t'écrit toute seule (bonjour, pensée, anecdote, bonne nuit…)</label>
+    <div class="row">
+      <label>Maximum par jour (hors bonjour / bonne nuit) <input type="number" min="0" max="12" data-key="initiativeParJour"></label>
+      <label>Écart minimum après un échange (min) <input type="number" min="15" max="720" data-key="initiativeEcartMin"></label>
+      <label>Messages sans réponse avant qu'elle arrête d'écrire la première <input type="number" min="1" max="10" data-key="initiativeInsistance"></label>
+    </div>
+    <label>Mode de décision
+      <select data-key="initiativeMode"><option value="probabiliste">Envie recalculée à chaque minute (conseillé)</option><option value="plan">Ancien système : heures tirées le matin</option></select>
+    </label>
+    <label class="check"><input type="checkbox" data-key="ressentirAbsence"> Il lui manque quand tu ne parles plus : elle t'écrit</label>
+    <span class="hint">Elle n'écrit jamais quand elle dort, ni en pleine discussion, et elle n'insiste pas si tu ne réponds pas.</span>
+  </fieldset>
+
+  <fieldset>
+    <legend>Mémoire : ce qu'elle sait de toi</legend>
+    <label>Numéro <select id="memNumero"></select></label>
+    <label>Carnet de faits (modifiable) <textarea id="memFaits" style="min-height:150px"></textarea></label>
+    <label>Souvenirs datés, une ligne par souvenir : AAAA-MM-JJ | ce qui s'est passé <textarea id="memEpisodes" style="min-height:110px"></textarea></label>
+    <label>Ce qu'elle a raconté sur sa vie, une ligne par fait : AAAA-MM-JJ | fait <textarea id="memElle" style="min-height:90px"></textarea></label>
+    <div class="row">
+      <button type="button" id="btnMemCharger">Recharger</button>
+      <button type="button" id="btnMemSauver">Enregistrer la mémoire</button>
+    </div>
+    <span class="hint">Elle remplit ces deux blocs toute seule en discutant. Tu peux corriger une info fausse ou ajouter un souvenir à la main.</span>
+  </fieldset>
+</main>
+
+<aside>
+  <div class="status" id="status">Arrêté<small id="substatus">Enregistre puis démarre.</small></div>
+  <img id="qr" alt="QR code à scanner avec le second numéro">
+  <div class="actions">
+    <button class="primary" id="btnStart">Enregistrer et démarrer</button>
+    <button id="btnStop" disabled>Arrêter</button>
+    <div class="actions two">
+      <button id="btnSave">Enregistrer</button>
+      <button id="btnTest">Tester l'IA</button>
+    </div>
+  </div>
+  <div id="msg"></div>
+  <pre id="log" aria-live="polite"></pre>
+  <div class="actions two">
+    <button id="btnCopy">Copier le journal</button>
+    <button id="btnFolder">Ouvrir le dossier</button>
+  </div>
+  <div class="actions">
+    <button id="btnReset">Effacer la mémoire du bot</button>
+    <button class="danger" id="btnLogout">Déconnecter WhatsApp</button>
+  </div>
+</aside>
+<script src="renderer.js"></script>
+</body>
+</html>
